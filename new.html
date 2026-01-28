@@ -2,31 +2,164 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <link rel="manifest" href="manifest.json">
-    <title>Edge Impulse 실시간 웹캠 추론</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 이미지 인식기</title>
     <style>
-        body { font-family: sans-serif; text-align: center; }
-        #video-container { position: relative; display: inline-block; }
-        video { transform: scaleX(-1); border: 2px solid #333; border-radius: 10px; }
-        #results { margin-top: 20px; font-size: 1.2rem; font-weight: bold; color: #007bff; }
+        /* 기본 앱 스타일 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f7fa;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            width: 90%;
+            max-width: 400px;
+            background: white;
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h2 { color: #333; margin-bottom: 20px; font-size: 1.2rem; }
+
+        /* 웹캠 박스 디자인 */
+        #webcam-container {
+            border-radius: 15px;
+            overflow: hidden;
+            background: #eee;
+            margin-bottom: 20px;
+            line-height: 0; /* 여백 제거 */
+            display: flex;
+            justify-content: center;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: auto !important;
+            border-radius: 15px;
+        }
+
+        /* 결과 라벨 디자인 */
+        #label-container {
+            margin-top: 15px;
+            text-align: left;
+        }
+
+        .prediction-row {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            font-weight: 500;
+        }
+
+        /* 버튼 디자인 */
+        #start-btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            background: #4A90E2;
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #start-btn:disabled { background: #ccc; }
     </style>
-</head>
-<body>
-    <script>
-        // 서비스 워커 등록
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(() => console.log("PWA 서비스 워커 등록 완료"));
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <script type="text/javascript">
+        const URL = "https://teachablemachine.withgoogle.com/models/p30r1PES1/";
+        let model, webcam, labelContainer, maxPredictions;
+        let isStarted = false;
+
+        async function init() {
+            if (isStarted) return; // 중복 실행 방지
+            isStarted = true;
+
+            const btn = document.getElementById("start-btn");
+            btn.disabled = true;
+            btn.innerText = "모델 로딩 중...";
+
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // 모바일 대응: 컨테이너 너비에 맞게 웹캠 설정
+            const flip = true;
+            webcam = new tmImage.Webcam(350, 350, flip); 
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            
+            // 초기 라벨 레이아웃 생성
+            for (let i = 0; i < maxPredictions; i++) {
+                const row = document.createElement("div");
+                row.className = `prediction-row`;
+                labelContainer.appendChild(row);
+            }
+
+            btn.style.display = "none"; // 시작 후 버튼 숨기기
+        }
+
+        async function loop() {
+            webcam.update();
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            
+            // children은 텍스트 노드를 제외한 실제 HTML 요소(div)만 가져옵니다.
+            const displayRows = labelContainer.children;
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const className = prediction[i].className;
+                const probability = (prediction[i].probability * 100).toFixed(0);
+                
+                // i번째 div가 존재하는지 확인 후 데이터 삽입
+                if (displayRows[i]) {
+                    displayRows[i].innerHTML = `
+                        <span>${className}</span>
+                        <span style="color: #4A90E2">${probability}%</span>
+                    `;
+                }
+            }
         }
     </script>
-    <h1>실시간 사물 분류기</h1>
-    <div id="video-container">
-        <video id="webcam" autoplay playsinline width="320" height="240"></video>
-    </div>
-    <div id="results">모델 로딩 중...</div>
+</head>
+<body>
 
-    <script src="edge-impulse-standalone.js"></script>
-    <script src="run-impulse.js"></script>
-    <script src="main.js"></script>
+<div class="app-container">
+    <h2>이미지 분류 AI</h2>
+    
+    <div id="webcam-container">
+        </div>
+
+    <button type="button" id="start-btn" onclick="init()">분석 시작하기</button>
+
+    <div id="label-container">
+        </div>
+</div>
+
 </body>
 </html>

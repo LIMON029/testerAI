@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="manifest.json">
+    <title>Edge Impulse 실시간 웹캠 추론</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; }
+        #video-container { position: relative; display: inline-block; }
+        video { transform: scaleX(-1); border: 2px solid #333; border-radius: 10px; }
+        #results { margin-top: 20px; font-size: 1.2rem; font-weight: bold; color: #007bff; }
+    </style>
+</head>
+<body>
+    <script>
+        // 서비스 워커 등록
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log("PWA 서비스 워커 등록 완료"));
+        }
+    </script>
+    <h1>실시간 사물 분류기</h1>
+    <div id="video-container">
+        <video id="webcam" autoplay playsinline width="320" height="240"></video>
+    </div>
+    <div id="results">모델 로딩 중...</div>
+
+    <script src="edge-impulse-standalone.js"></script>
+    <script src="run-impulse.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
